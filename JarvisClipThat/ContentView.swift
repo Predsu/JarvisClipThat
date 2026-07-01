@@ -2,17 +2,16 @@ import SwiftUI
 import AppKit
 
 class ClipboardManager: ObservableObject {
-    @Published var currentActive: String = "" // Aktualnie gotowy element (na samej górze)
-    @Published var history: [String] = []     // Historia poprzednich elementów
+    @Published var currentActive: String = ""
+    @Published var history: [String] = []
     
     private let pasteboard = NSPasteboard.general
     private var changeCount: Int
     private var timer: Timer?
-    private var isInternalPaste = false       // Flaga zapobiegająca duplikowaniu przy kliknięciu
+    private var isInternalPaste = false
 
     init() {
         self.changeCount = pasteboard.changeCount
-        // Pobieramy startową zawartość schowka, jeśli istnieje
         if let initial = pasteboard.string(forType: .string) {
             let trimmed = initial.trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmed.isEmpty { self.currentActive = trimmed }
@@ -32,17 +31,13 @@ class ClipboardManager: ObservableObject {
             guard !trimmed.isEmpty else { return }
             
             DispatchQueue.main.async {
-                // Jeśli zmiana nastąpiła przez kliknięcie w programie:
                 if self.isInternalPaste {
                     self.currentActive = trimmed
-                    self.isInternalPaste = false // Resetujemy flagę
+                    self.isInternalPaste = false
                     return
                 }
                 
-                // Jeśli użytkownik skopiował coś nowego z zewnątrz:
-                // Przenosimy dotychczasowy aktywny element do historii (jeśli nie był pusty)
                 if !self.currentActive.isEmpty && self.currentActive != trimmed {
-                    // Usuwamy ewentualne stare wystąpienia tego tekstu, żeby nie dublować w historii
                     self.history.removeAll { $0 == trimmed }
                     self.history.insert(self.currentActive, at: 0)
                 }
@@ -55,14 +50,11 @@ class ClipboardManager: ObservableObject {
     }
 
     func pasteItem(_ text: String) {
-        self.isInternalPaste = true // Informujemy managera, że to nasze własne kliknięcie
+        self.isInternalPaste = true
         
-        // 1. Zapisujemy do schowka systemowego
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
         
-        // Aktualizujemy lokalny stan: wybrany tekst staje się aktywny,
-        // a jeśli był w historii, to go stamtąd usuwamy (bo jest teraz na górze)
         DispatchQueue.main.async {
             self.history.removeAll { $0 == text }
             if !self.currentActive.isEmpty && self.currentActive != text {
@@ -71,7 +63,6 @@ class ClipboardManager: ObservableObject {
             self.currentActive = text
         }
         
-        // 2. Symulujemy CMD + V
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             let src = CGEventSource(stateID: .combinedSessionState)
             let vKeyDown = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: true)
@@ -87,7 +78,6 @@ class ClipboardManager: ObservableObject {
         DispatchQueue.main.async {
             self.currentActive = ""
             self.history.removeAll()
-            // Czyścimy też fizyczny schowek systemowy
             self.pasteboard.clearContents()
         }
     }
@@ -99,7 +89,6 @@ struct ContentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Nagłówek
             HStack {
                 Text("JarvisClipThat")
                     .font(.system(size: 11, weight: .bold))
@@ -107,14 +96,14 @@ struct ContentView: View {
                 Spacer()
                 Button(action: {
                     clipboard.clearAll()
-                    hideAction() // Opcjonalnie zamyka okno po wyczyszczeniu
+                    hideAction()
                 }) {
-                    Image(systemName: "trash.fill") // Zmiana na ikonę kosza
+                    Image(systemName: "trash.fill")
                         .font(.system(size: 11))
                         .foregroundColor(.red.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .help("Wyczyść całą historię") // Podpowiedź po najechaniu myszką
+                .help("Clear history")
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -122,14 +111,13 @@ struct ContentView: View {
             
             Divider().background(Color.white.opacity(0.1))
             
-            // Sekcja: AKTUALNIE W SCHOWKU (Zawsze na górze)
             VStack(alignment: .leading, spacing: 4) {
-                Text("AKTUALNIE W SCHOWKU (CMD+V)")
+                Text("CURRENTLY COPIED")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.cyan)
                 
                 if clipboard.currentActive.isEmpty {
-                    Text("Schowek jest pusty")
+                    Text("Clipboard is empty")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.gray)
                         .italic()
@@ -152,9 +140,8 @@ struct ContentView: View {
             
             Divider().background(Color.white.opacity(0.1))
             
-            // Sekcja: HISTORIA
             HStack {
-                Text("STARSZA HISTORIA")
+                Text("HISTORY")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
                 Spacer()
@@ -164,7 +151,7 @@ struct ContentView: View {
             
             ScrollView {
                 if clipboard.history.isEmpty {
-                    Text("Brak starszych elementów")
+                    Text("No history available")
                         .font(.footnote)
                         .foregroundColor(.gray)
                         .padding(.top, 20)
@@ -192,6 +179,6 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(width: 260, height: 350) // Lekko zwiększyłem wysokość (z 320 na 350) dla nowej sekcji
+        .frame(width: 260, height: 350)
     }
 }

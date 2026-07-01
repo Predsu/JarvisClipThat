@@ -23,7 +23,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             self?.hidePopover()
         })
         
-        // Zwiększamy wysokość okna popover do 350
         popover.contentSize = NSSize(width: 260, height: 350)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
@@ -37,7 +36,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            // Domyślnie zostawiam Shift + Option + V (klawisz 9), zmień jeśli wolisz inny
             if event.keyCode == 9 && modifiers == [.shift, .option] {
                 DispatchQueue.main.async {
                     self?.togglePopover()
