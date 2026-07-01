@@ -1,9 +1,17 @@
 import SwiftUI
 import AppKit
+import UniformTypeIdentifiers
+
+struct ClipboardItem: Identifiable, Equatable {
+    let id = UUID()
+    let text: String?
+    let image: NSImage?
+    var isImage: Bool { image != nil }
+}
 
 class ClipboardManager: ObservableObject {
-    @Published var currentActive: String = ""
-    @Published var history: [String] = []
+    @Published var currentActive: ClipboardItem? = nil
+    @Published var history: [ClipboardItem] = []
     
     private let pasteboard = NSPasteboard.general
     private var changeCount: Int
@@ -12,9 +20,8 @@ class ClipboardManager: ObservableObject {
 
     init() {
         self.changeCount = pasteboard.changeCount
-        if let initial = pasteboard.string(forType: .string) {
-            let trimmed = initial.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { self.currentActive = trimmed }
+        if let initial = getClipboardContent() {
+            self.currentActive = initial
         }
         
         self.timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
@@ -22,45 +29,64 @@ class ClipboardManager: ObservableObject {
         }
     }
 
+    private func getClipboardContent() -> ClipboardItem? {
+        if let imageTypes = pasteboard.types, imageTypes.contains(.tiff) || imageTypes.contains(.png) {
+            if let img = NSImage(pasteboard: pasteboard) {
+                return ClipboardItem(text: nil, image: img)
+            }
+        }
+        if let str = pasteboard.string(forType: .string) {
+            let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return ClipboardItem(text: trimmed, image: nil)
+            }
+        }
+        return nil
+    }
+
     private func checkClipboard() {
         guard pasteboard.changeCount != changeCount else { return }
         changeCount = pasteboard.changeCount
 
-        if let newString = pasteboard.string(forType: .string) {
-            let trimmed = newString.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
-            
-            DispatchQueue.main.async {
-                if self.isInternalPaste {
-                    self.currentActive = trimmed
-                    self.isInternalPaste = false
-                    return
-                }
-                
-                if !self.currentActive.isEmpty && self.currentActive != trimmed {
-                    self.history.removeAll { $0 == trimmed }
-                    self.history.insert(self.currentActive, at: 0)
-                }
-                
-                self.currentActive = trimmed
-                
-                if self.history.count > 30 { self.history.removeLast() }
+        guard let newItem = getClipboardContent() else { return }
+
+        DispatchQueue.main.async {
+            if self.isInternalPaste {
+                self.currentActive = newItem
+                self.isInternalPaste = false
+                return
             }
+            
+            if let active = self.currentActive, active.text == newItem.text && active.image == newItem.image {
+                return
+            }
+            
+            if let active = self.currentActive {
+                self.history.removeAll { $0.text == newItem.text && $0.image == newItem.image }
+                self.history.insert(active, at: 0)
+            }
+            
+            self.currentActive = newItem
+            if self.history.count > 20 { self.history.removeLast() }
         }
     }
 
-    func pasteItem(_ text: String) {
+    func pasteItem(_ item: ClipboardItem) {
         self.isInternalPaste = true
-        
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        
+        if let img = item.image {
+            pasteboard.writeObjects([img])
+        } else if let text = item.text {
+            pasteboard.setString(text, forType: .string)
+        }
         
         DispatchQueue.main.async {
-            self.history.removeAll { $0 == text }
-            if !self.currentActive.isEmpty && self.currentActive != text {
-                self.history.insert(self.currentActive, at: 0)
+            self.history.removeAll { $0.id == item.id }
+            if let active = self.currentActive, active.id != item.id {
+                self.history.insert(active, at: 0)
             }
-            self.currentActive = text
+            self.currentActive = item
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -74,9 +100,10 @@ class ClipboardManager: ObservableObject {
             vKeyUp?.post(tap: .cghidEventTap)
         }
     }
+
     func clearAll() {
         DispatchQueue.main.async {
-            self.currentActive = ""
+            self.currentActive = nil
             self.history.removeAll()
             self.pasteboard.clearContents()
         }
@@ -99,7 +126,7 @@ struct ContentView: View {
                     hideAction()
                 }) {
                     Image(systemName: "trash.fill")
-                        .font(.system(size: 11))
+                        .font(.system(size: 10))
                         .foregroundColor(.red.opacity(0.7))
                 }
                 .buttonStyle(.plain)
@@ -116,24 +143,41 @@ struct ContentView: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.cyan)
                 
-                if clipboard.currentActive.isEmpty {
+                if let active = clipboard.currentActive {
+                    if active.isImage, let img = active.image {
+                        Image(nsImage: img)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 70)
+                            .background(Color.black.opacity(0.2))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.cyan.opacity(0.4), lineWidth: 1)
+                            )
+                    } else if let text = active.text {
+                        Text(text)
+                            .font(.system(size: 11, design: .monospaced))
+                            .lineLimit(2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 8)
+                            .background(Color.cyan.opacity(0.15))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                } else {
                     Text("Clipboard is empty")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.gray)
                         .italic()
-                } else {
-                    Text(clipboard.currentActive)
-                        .font(.system(size: 11, design: .monospaced))
-                        .lineLimit(2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 6)
                         .padding(.horizontal, 8)
-                        .background(Color.cyan.opacity(0.15))
-                        .cornerRadius(6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
-                        )
                 }
             }
             .padding(8)
@@ -156,21 +200,38 @@ struct ContentView: View {
                         .foregroundColor(.gray)
                         .padding(.top, 20)
                 } else {
-                    VStack(spacing: 4) {
-                        ForEach(clipboard.history, id: \.self) { item in
+                    VStack(spacing: 5) {
+                        ForEach(clipboard.history) { item in
                             Button(action: {
                                 clipboard.pasteItem(item)
                                 hideAction()
                             }) {
-                                Text(item)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .lineLimit(2)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 6)
-                                    .padding(.horizontal, 8)
-                                    .background(Color.white.opacity(0.06))
-                                    .cornerRadius(6)
+                                Group {
+                                    if item.isImage, let img = item.image {
+                                        HStack {
+                                            Image(nsImage: img)
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 60, height: 40)
+                                                .background(Color.black.opacity(0.2))
+                                                .cornerRadius(4)
+                                            Text("Image")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                            Spacer()
+                                        }
+                                    } else if let text = item.text {
+                                        Text(text)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .lineLimit(2)
+                                            .multilineTextAlignment(.leading)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                }
+                                .padding(.vertical, 5)
+                                .padding(.horizontal, 8)
+                                .background(Color.white.opacity(0.06))
+                                .cornerRadius(6)
                             }
                             .buttonStyle(PlainButtonStyle())
                         }
@@ -179,6 +240,6 @@ struct ContentView: View {
                 }
             }
         }
-        .frame(width: 260, height: 350)
+        .frame(width: 260, height: 380)
     }
 }

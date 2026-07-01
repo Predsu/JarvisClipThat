@@ -17,13 +17,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var popover = NSPopover()
     var clipboardManager = ClipboardManager()
     var globalMonitor: Any?
+    
+    var contextMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let contentView = ContentView(clipboard: clipboardManager, hideAction: { [weak self] in
             self?.hidePopover()
         })
         
-        popover.contentSize = NSSize(width: 260, height: 350)
+        popover.contentSize = NSSize(width: 260, height: 380)
         popover.behavior = .transient
         popover.contentViewController = NSHostingController(rootView: contentView)
 
@@ -32,7 +34,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "paperclip", accessibilityDescription: "JarvisClipThat")
             button.action = #selector(statusBarClicked)
             button.target = self
+            
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
+
+        setupContextMenu()
 
         globalMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -44,8 +50,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func setupContextMenu() {
+        let menu = NSMenu()
+        
+        let titleItem = NSMenuItem(title: "JarvisClipThat v1.0", action: nil, keyEquivalent: "")
+        titleItem.isEnabled = false
+        menu.addItem(titleItem)
+        
+        // for future
+        // let settingsItem = NSMenuItem(title: "Ustawienia...", action: #selector(openSettings), keyEquivalent: ",")
+        // menu.addItem(settingsItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+        
+        self.contextMenu = menu
+    }
+
     @objc func statusBarClicked() {
-        togglePopover()
+        let event = NSApp.currentEvent
+        
+        if event?.type == .rightMouseUp || (event?.type == .leftMouseUp && event?.modifierFlags.contains(.control) == true) {
+            if popover.isShown {
+                hidePopover()
+            }
+            
+            if let button = statusItem?.button, let menu = contextMenu {
+                statusItem?.menu = menu
+                button.performClick(nil)
+                statusItem?.menu = nil
+            }
+        } else {
+            togglePopover()
+        }
     }
 
     func togglePopover() {
@@ -65,6 +105,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func hidePopover() {
         popover.performClose(nil)
+    }
+
+    @objc func quitApp() {
+        NSApp.terminate(nil)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
