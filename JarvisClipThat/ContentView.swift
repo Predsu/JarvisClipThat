@@ -1,6 +1,5 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 struct ClipboardItem: Identifiable, Equatable {
     let id = UUID()
@@ -12,6 +11,7 @@ struct ClipboardItem: Identifiable, Equatable {
 class ClipboardManager: ObservableObject {
     @Published var currentActive: ClipboardItem? = nil
     @Published var history: [ClipboardItem] = []
+    @Published var isPrivateMode: Bool = false
     
     private let pasteboard = NSPasteboard.general
     private var changeCount: Int
@@ -37,9 +37,7 @@ class ClipboardManager: ObservableObject {
         }
         if let str = pasteboard.string(forType: .string) {
             let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty {
-                return ClipboardItem(text: trimmed, image: nil)
-            }
+            if !trimmed.isEmpty { return ClipboardItem(text: trimmed, image: nil) }
         }
         return nil
     }
@@ -48,16 +46,30 @@ class ClipboardManager: ObservableObject {
         guard pasteboard.changeCount != changeCount else { return }
         changeCount = pasteboard.changeCount
 
-        guard let newItem = getClipboardContent() else { return }
+        guard let newItem = getClipboardContent() else {
+            DispatchQueue.main.async {
+                self.currentActive = nil
+            }
+            return
+        }
 
         DispatchQueue.main.async {
             if self.isInternalPaste {
                 self.currentActive = newItem
                 self.isInternalPaste = false
+                
+                if self.isPrivateMode {
+                    self.burnActiveItem()
+                }
                 return
             }
             
             if let active = self.currentActive, active.text == newItem.text && active.image == newItem.image {
+                return
+            }
+            
+            if self.isPrivateMode {
+                self.currentActive = newItem
                 return
             }
             
@@ -82,22 +94,38 @@ class ClipboardManager: ObservableObject {
         }
         
         DispatchQueue.main.async {
-            self.history.removeAll { $0.id == item.id }
-            if let active = self.currentActive, active.id != item.id {
-                self.history.insert(active, at: 0)
+            if self.isPrivateMode {
+                self.currentActive = item
+            } else {
+                self.history.removeAll { $0.id == item.id }
+                if let active = self.currentActive, active.id != item.id {
+                    self.history.insert(active, at: 0)
+                }
+                self.currentActive = item
             }
-            self.currentActive = item
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            let src = CGEventSource(stateID: .combinedSessionState)
-            let vKeyDown = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: true)
-            vKeyDown?.flags = .maskCommand
-            let vKeyUp = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: false)
-            vKeyUp?.flags = .maskCommand
-            
-            vKeyDown?.post(tap: .cghidEventTap)
-            vKeyUp?.post(tap: .cghidEventTap)
+        let src = CGEventSource(stateID: .combinedSessionState)
+        let vKeyDown = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: true)
+        vKeyDown?.flags = .maskCommand
+        let vKeyUp = CGEvent(keyboardEventSource: src, virtualKey: 0x09, keyDown: false)
+        vKeyUp?.flags = .maskCommand
+        
+        vKeyDown?.post(tap: .cghidEventTap)
+        vKeyUp?.post(tap: .cghidEventTap)
+        
+        if self.isPrivateMode {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.burnActiveItem()
+            }
+        }
+    }
+
+    private func burnActiveItem() {
+        DispatchQueue.main.async {
+            self.currentActive = nil
+            self.pasteboard.clearContents()
+            self.changeCount = self.pasteboard.changeCount
         }
     }
 
@@ -106,6 +134,7 @@ class ClipboardManager: ObservableObject {
             self.currentActive = nil
             self.history.removeAll()
             self.pasteboard.clearContents()
+            self.changeCount = self.pasteboard.changeCount
         }
     }
 }
@@ -117,9 +146,17 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("JarvisClipThat")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text("JarvisClipThat")
+                        .font(.system(size: 11, weight: .bold))
+                    if clipboard.isPrivateMode {
+                        Image(systemName: "eye.slash.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.purple)
+                    }
+                }
+                .foregroundColor(.secondary)
+                
                 Spacer()
                 Button(action: {
                     clipboard.clearAll()
@@ -130,7 +167,6 @@ struct ContentView: View {
                         .foregroundColor(.red.opacity(0.7))
                 }
                 .buttonStyle(.plain)
-                .help("Clear history")
             }
             .padding(.horizontal, 12)
             .padding(.top, 10)
@@ -138,10 +174,22 @@ struct ContentView: View {
             
             Divider().background(Color.white.opacity(0.1))
             
+            if clipboard.isPrivateMode {
+                HStack {
+                    Spacer()
+                    Text("BURNER MODE ACTIVE")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(.purple)
+                    Spacer()
+                }
+                .padding(.vertical, 4)
+                .background(Color.purple.opacity(0.15))
+            }
+            
             VStack(alignment: .leading, spacing: 4) {
                 Text("CURRENTLY COPIED")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.cyan)
+                    .foregroundColor(clipboard.isPrivateMode ? .purple : .cyan)
                 
                 if let active = clipboard.currentActive {
                     if active.isImage, let img = active.image {
@@ -154,7 +202,7 @@ struct ContentView: View {
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.cyan.opacity(0.4), lineWidth: 1)
+                                    .stroke(clipboard.isPrivateMode ? Color.purple.opacity(0.4) : Color.cyan.opacity(0.4), lineWidth: 1)
                             )
                     } else if let text = active.text {
                         Text(text)
@@ -163,15 +211,15 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 6)
                             .padding(.horizontal, 8)
-                            .background(Color.cyan.opacity(0.15))
+                            .background(clipboard.isPrivateMode ? Color.purple.opacity(0.15) : Color.cyan.opacity(0.15))
                             .cornerRadius(6)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.cyan.opacity(0.3), lineWidth: 1)
+                                    .stroke(clipboard.isPrivateMode ? Color.purple.opacity(0.3) : Color.cyan.opacity(0.3), lineWidth: 1)
                             )
                     }
                 } else {
-                    Text("Clipboard is empty")
+                    Text(clipboard.isPrivateMode ? "Burned data" : "Clipboard is empty")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.gray)
                         .italic()

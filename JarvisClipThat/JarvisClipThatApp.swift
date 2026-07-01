@@ -12,12 +12,11 @@ struct JarvisClipThatApp: App {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
     var popover = NSPopover()
     var clipboardManager = ClipboardManager()
     var globalMonitor: Any?
-    
     var contextMenu: NSMenu?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -34,7 +33,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "paperclip", accessibilityDescription: "JarvisClipThat")
             button.action = #selector(statusBarClicked)
             button.target = self
-            
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
@@ -52,14 +50,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func setupContextMenu() {
         let menu = NSMenu()
+        menu.delegate = self
         
         let titleItem = NSMenuItem(title: "JarvisClipThat v1.0", action: nil, keyEquivalent: "")
         titleItem.isEnabled = false
         menu.addItem(titleItem)
         
-        // for future
-        // let settingsItem = NSMenuItem(title: "Ustawienia...", action: #selector(openSettings), keyEquivalent: ",")
-        // menu.addItem(settingsItem)
+        menu.addItem(NSMenuItem.separator())
+        
+        let privateModeItem = NSMenuItem(title: "Burner Mode", action: #selector(togglePrivateMode), keyEquivalent: "p")
+        privateModeItem.target = self
+        menu.addItem(privateModeItem)
         
         menu.addItem(NSMenuItem.separator())
         
@@ -70,14 +71,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.contextMenu = menu
     }
 
+    func menuWillOpen(_ menu: NSMenu) {
+        if let privateItem = menu.items.first(where: { $0.action == #selector(togglePrivateMode) }) {
+            privateItem.state = clipboardManager.isPrivateMode ? .on : .off
+        }
+    }
+
+    @objc func togglePrivateMode() {
+        clipboardManager.isPrivateMode.toggle()
+    }
+
     @objc func statusBarClicked() {
         let event = NSApp.currentEvent
-        
         if event?.type == .rightMouseUp || (event?.type == .leftMouseUp && event?.modifierFlags.contains(.control) == true) {
             if popover.isShown {
                 hidePopover()
             }
-            
             if let button = statusItem?.button, let menu = contextMenu {
                 statusItem?.menu = menu
                 button.performClick(nil)
@@ -89,11 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func togglePopover() {
-        if popover.isShown {
-            hidePopover()
-        } else {
-            showPopover()
-        }
+        if popover.isShown { hidePopover() } else { showPopover() }
     }
 
     func showPopover() {
@@ -103,17 +108,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func hidePopover() {
-        popover.performClose(nil)
-    }
-
-    @objc func quitApp() {
-        NSApp.terminate(nil)
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        if let monitor = globalMonitor {
-            NSEvent.removeMonitor(monitor)
-        }
-    }
+    func hidePopover() { popover.performClose(nil) }
+    @objc func quitApp() { NSApp.terminate(nil) }
 }
