@@ -37,7 +37,10 @@ class ClipboardManager: ObservableObject {
         }
         if let str = pasteboard.string(forType: .string) {
             let trimmed = str.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !trimmed.isEmpty { return ClipboardItem(text: trimmed, image: nil) }
+            if !trimmed.isEmpty {
+                let safeText = trimmed.count > 20000 ? String(trimmed.prefix(20000)) + "..." : trimmed
+                return ClipboardItem(text: safeText, image: nil)
+            }
         }
         return nil
     }
@@ -177,6 +180,7 @@ struct ContentView: View {
             if clipboard.isPrivateMode {
                 HStack {
                     Spacer()
+                    //Please don't burn forests kids, they are so cool unlike the text below :(
                     Text("BURNER MODE ACTIVE")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.purple)
@@ -219,6 +223,8 @@ struct ContentView: View {
                             )
                     }
                 } else {
+                    //Hello!!! Haiii!! Please buy a TGPhone!! :3
+                
                     Text(clipboard.isPrivateMode ? "Burned data" : "Clipboard is empty")
                         .font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.gray)
@@ -291,3 +297,4 @@ struct ContentView: View {
         .frame(width: 260, height: 380)
     }
 }
+

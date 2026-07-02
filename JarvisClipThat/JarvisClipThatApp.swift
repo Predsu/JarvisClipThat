@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Carbon
+import ServiceManagement
 
 @main
 struct JarvisClipThatApp: App {
@@ -56,11 +57,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         menu.addItem(NSMenuItem.separator())
         
+        let launchAtLoginItem = NSMenuItem(title: "Launch at login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "l")
+        launchAtLoginItem.target = self
+        menu.addItem(launchAtLoginItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
         let quitItem = NSMenuItem(title: "Quit", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
         
         self.contextMenu = menu
+    }
+    
+    @objc func toggleLaunchAtLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            print("Error configuring autostart: \(error.localizedDescription)")
+        }
     }
 
     func setupGlobalShortcut() {
@@ -139,6 +158,9 @@ extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         if let privateItem = menu.items.first(where: { $0.action == #selector(togglePrivateMode) }) {
             privateItem.state = clipboardManager.isPrivateMode ? .on : .off
+        }
+        if let launchItem = menu.items.first(where: { $0.action == #selector(toggleLaunchAtLogin) }) {
+            launchItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
         }
     }
 }
