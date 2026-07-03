@@ -38,6 +38,7 @@ JarvisClipThat is a minimalistic clipboard app built for MacOS, introducing full
 * **Minimalist Interface** – The app runs as a MenuUI Agent, staying out of your Dock and occupying only a small footprint on your menu bar.
 * **Multimedia Capable** – Fully supports high-resolution images as well as text up to 20,000 characters.
 * **Burner Mode** – Allows the user to switch between JarvisClipThat and standard MacOS clipboard mode.
+* **Autostart** - The app is starting along with the system letting you forget about starting it manually eacah time.
 * **Global Shortcut** – Call the clipboard history anywhere and anytime using the `Shift + Option + V` shortcut.
 
 ---
@@ -64,14 +65,7 @@ Reviewers and users **do not need to compile this project from source**. Follow 
 
 Because this app is an open-source project and is not distributed through the Mac App Store, macOS Gatekeeper might block the first launch with a warning. To safely bypass this:
 
-1. **Do not** double-click the app if the error pops up.
-2. Instead, **Right-click (or Control-click)** the `JarvisClipThat` icon inside your Applications folder and select **Open**.
-3. A different dialog box will appear asking for confirmation. Click **Open**.
-4. The app will now launch successfully.
-
-If you are still getting error try the following:
-
-1. Try to open the app normally. You'll get the warning.
+1. Try to open the app normally. You'll get the warning about security.
 2. Open System Settings → Privacy & Security.
 3. Scroll to the bottom. You'll see a message that the app was blocked. Click Open Anyway.
 4. Enter your password or use Touch ID.
