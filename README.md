@@ -57,7 +57,7 @@ JarvisClipThat is a minimalistic clipboard app built for MacOS, introducing full
 
 Reviewers and users **do not need to compile this project from source**. Follow these steps to get the app running in seconds:
 
-1. Go to the [Releases Page](https://github.com/YOUR_GITHUB_USERNAME/JarvisClipThat/releases/latest) and download the `JarvisClipThat.dmg` file.
+1. Go to the [Releases Page](https://github.com/Predsu/JarvisClipThat/releases/latest) and download the `JarvisClipThat.dmg` file.
 2. Double-click the downloaded `.dmg` file and drag **JarvisClipThat** into your **Applications** folder.
 3. Open your Applications folder and launch the app.
 
