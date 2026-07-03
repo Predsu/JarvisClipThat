@@ -93,3 +93,6 @@ JarvisClipThat is built with absolute privacy in mind. Out of the box, it requir
 * RAM-Only Storage – The copy history is kept strictly in the volatile memory (RAM) of your machine.
 * Zero Disk Footprint – It does not save your texts or images to any database, hard drive, plist, or cache file. Closing the app or restarting your Mac wipes the history completely.
 	•	No Cloud Overhead – The app runs fully locally and has no network tracking, ensuring no data ever leaves your computer.
+
+## About AI Usage
+I'm a beginner in Swift programming and native MacOS apps thus the AI has been used for explaining how certain things work, small repetitive code completions and code review. About 10% of the whole repository code is written directly by AI.
