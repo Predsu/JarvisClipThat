@@ -9,13 +9,13 @@ struct ClipboardItem: Identifiable, Equatable {
     var categoryId: UUID? = nil
 }
 
-struct ClipboardCategory: Identifiable, Equatable {
+struct ClipboardCategory: Identifiable, Equatable, Codable {
     let id = UUID()
     let name: String
     let iconName: String
 }
 
-struct UserSnippet: Identifiable, Equatable {
+struct UserSnippet: Identifiable, Equatable, Codable {
     let id = UUID()
     let title: String
     let content: String
@@ -26,8 +26,16 @@ class ClipboardManager: ObservableObject {
     @Published var history: [ClipboardItem] = []
     @Published var isPrivateMode: Bool = false
     
-    @Published var categories: [ClipboardCategory] = []
-    @Published var userSnippets: [UserSnippet] = []
+    @Published var categories: [ClipboardCategory] = [] {
+        didSet {
+            DataStorageHelper.saveData(categories, to: "categories.json")
+        }
+    }
+    @Published var userSnippets: [UserSnippet] = [] {
+        didSet {
+            DataStorageHelper.saveData(userSnippets, to: "snippets.json")
+        }
+    }
     
     private let pasteboard = NSPasteboard.general
     private var changeCount: Int
@@ -40,8 +48,22 @@ class ClipboardManager: ObservableObject {
             self.currentActive = initial
         }
         
+        loadPersistedData()
+        
         self.timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
             self?.checkClipboard()
+        }
+    }
+    
+    private func loadPersistedData() {
+        if let loadedCats = DataStorageHelper.loadData("categories.json", as: [ClipboardCategory].self) {
+            self.categories = loadedCats
+        } else {
+            self.categories = []
+        }
+        
+        if let loadedSnippets = DataStorageHelper.loadData("snippets.json", as: [UserSnippet].self) {
+            self.userSnippets = loadedSnippets
         }
     }
 
